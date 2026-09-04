@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+captures/
+unknowns/
+gallery_thumbs/
+gallery.html
+tempscreen.png
+current_viewport.png
+run_flag.txt
+*.log

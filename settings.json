@@ -1,0 +1,49 @@
+{
+ "webhook": "None",
+ "userid": "0",
+ "vip": "PASTE_YOUR_PRIVATE_SERVER_LINK_HERE",
+ "pingeveryoneuponrare": false,
+ "rejoindelay": 0,
+ "killcooldown": 3,
+ "cleanupage_hours": 24,
+ "cleanupmaxmb": 200,
+ "biomepixelchecks": 300,
+ "biomepixelthreshold": 150,
+ "biomepixeltolerance": 12,
+ "rarebiomes": {
+  "hvuh": 0,
+  "void": 0,
+  "angel": 0,
+  "bene": 0,
+  "cult": 0,
+  "asta": 0
+ },
+ "skippablebiomes": {
+  "pvc": 0,
+  "moon": 0,
+  "flame": 0,
+  "forest": 0,
+  "storm": 0,
+  "blizzard": 0,
+  "irradiated": 0,
+  "star": 0
+ },
+ "sharedskies": {
+  "pvc": [
+   "pvc",
+   "hvuh",
+   "asta"
+  ]
+ },
+ "afkfarm": true,
+ "slottoafkfarm": 2,
+ "waitbeforerejoin": 60,
+ "browsertoclose": "chrome",
+ "killbrowser": true,
+ "whichslottoequip": 1,
+ "resetuponload": true,
+ "screenshotstatusinterval": 10,
+ "keytopause": "f9",
+ "strugglemessage": "the struggle continues.",
+ "struggleattachment": "https://www.davelabowitz.com/wp-content/uploads/Sisyphus-e1557869810488.jpg"
+}
