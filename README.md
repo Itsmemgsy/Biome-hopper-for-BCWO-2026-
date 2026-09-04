@@ -1,8 +1,11 @@
 # 🌾 Biome Hopper — automatic biome farming for Balanced Craftwars Overhaul
 
-Opens your private server, waits for a biome, farms the rare ones (pets out,
+Opens your private server, waits for a biome, farms the rare ones (summons out,
 AFK fighting) and re-joins to skip the rest. Pings you on Discord when it
 finds something worth your attention.
+
+MUST READ!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+PUT YOUR TWILIGHT AND OTHER SUMMON ON FIRST AND SECOND PLACE OF YOUR INVENTORY
 
 Adapted from https://github.com/debelopguy/BiomeHopper and reworked: the
 repo's screenshots, boss checks and clicks were built for an older BCWO and a
