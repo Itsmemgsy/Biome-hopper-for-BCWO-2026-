@@ -16,6 +16,7 @@ own references, and validates the camera every cycle.
 
 - **Windows 10/11** (64-bit)
 - **Python 3.10+** from python.org — during install tick **"Add python.exe to PATH"**
+- https://www.python.org/
 - **Roblox** installed, running **windowed** (not exclusive fullscreen — the
   macro forces windowed with F11 if needed)
 - **Your private (VIP) server link** for Balanced Craftwars Overhaul
