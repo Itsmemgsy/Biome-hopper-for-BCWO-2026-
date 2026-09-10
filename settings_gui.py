@@ -55,12 +55,14 @@ class App:
         ttk.Checkbutton(g, text="Respawn + zoom out after joining", variable=self.var["resetuponload"]).grid(row=1, column=0, sticky="w")
         self.var["killbrowser"] = tk.BooleanVar(value=bool(self.settings.get("killbrowser", True)))
         ttk.Checkbutton(g, text="Close Chrome after the game loads", variable=self.var["killbrowser"]).grid(row=2, column=0, sticky="w")
-        ttk.Label(g, text="Seconds to wait after killing Roblox before rejoining:").grid(row=3, column=0, sticky="w", pady=2)
+        self.var["pingunknown"] = tk.BooleanVar(value=bool(self.settings.get("pingunknown", True)))
+        ttk.Checkbutton(g, text="Ping Discord for unknown biomes (safety net)", variable=self.var["pingunknown"]).grid(row=3, column=0, sticky="w")
+        ttk.Label(g, text="Seconds to wait after killing Roblox before rejoining:").grid(row=4, column=0, sticky="w", pady=2)
         self.var["killcooldown"] = tk.StringVar(value=str(self.settings.get("killcooldown", 3)))
-        ttk.Entry(g, textvariable=self.var["killcooldown"], width=8).grid(row=3, column=1, sticky="w")
-        ttk.Label(g, text="Seconds to watch each server (20-120):").grid(row=4, column=0, sticky="w", pady=2)
+        ttk.Entry(g, textvariable=self.var["killcooldown"], width=8).grid(row=4, column=1, sticky="w")
+        ttk.Label(g, text="Seconds to watch each server (20-120):").grid(row=5, column=0, sticky="w", pady=2)
         self.var["waitbeforerejoin"] = tk.StringVar(value=str(self.settings.get("waitbeforerejoin", 60)))
-        ttk.Entry(g, textvariable=self.var["waitbeforerejoin"], width=8).grid(row=4, column=1, sticky="w")
+        ttk.Entry(g, textvariable=self.var["waitbeforerejoin"], width=8).grid(row=5, column=1, sticky="w")
 
         b = ttk.LabelFrame(self.root, text="Targeted biomes", padding=8)
         b.pack(fill="both", expand=True, padx=8, pady=6)
@@ -97,6 +99,7 @@ class App:
         s["afkfarm"] = self.var["afkfarm"].get()
         s["resetuponload"] = self.var["resetuponload"].get()
         s["killbrowser"] = self.var["killbrowser"].get()
+        s["pingunknown"] = self.var["pingunknown"].get()
         try:
             s["killcooldown"] = max(0, int(self.var["killcooldown"].get()))
         except ValueError:

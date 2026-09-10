@@ -173,33 +173,91 @@ def click(x, y, clicks=1, interval=None):
 
 def isimagesame(biomescreenshot, currentscreen):
     """Compare via random sky-band samples with per-channel tolerance.
-    Returns the match FRACTION (0..1) - the caller decides the threshold."""
+    Returns the match FRACTION (0..1) - the caller decides the threshold.
+    biomescreenshot is a cached sky band (x200-1560, y0-150 of the frame),
+    so full-frame sample coords are remapped into band space."""
     tol = settings.get("biomepixeltolerance", 12)
     checks = settings["biomepixelchecks"]
+    misses_allowed = checks - int(settings["biomepixelthreshold"])
     grace = 0
+    misses = 0
     for _ in range(checks):
         # sample the TOP SKY BAND only (y 0..150): avoids game UI, the ground
         # and summons that stand at ground level; the biome sky is up there.
         pixel = (random.randrange(200, 1560), random.randrange(0, 150))
         a = currentscreen.getpixel(pixel)
-        b = biomescreenshot.getpixel(pixel)
+        b = biomescreenshot.getpixel((pixel[0] - 200, pixel[1]))
         if abs(a[0] - b[0]) <= tol and abs(a[1] - b[1]) <= tol and abs(a[2] - b[2]) <= tol:
             grace += 1
+        else:
+            misses += 1
+            if misses > misses_allowed:
+                break  # threshold unreachable - stop early
     return grace / checks
 
 import glob as _glob
 
+_ref_cache = {}  # biome -> (signature, [sky-band images])
+MAX_AUTO_REFS = 4  # per biome: curated main ref + this many random auto-refs
+
+def sky_band(img):
+    return img.crop((200, 0, 1560, 150))
+
 def load_refs(biome):
-    """images/<biome>.png or images/<biome>/*.png (multi-refs for drifting skies).
-    '_ground.png' crops are horizon discriminators, never sky refs."""
-    paths = []
+    """Curated main ref + a few random auto-refs, cached as small sky bands.
+    Full 1600x900 frames would eat ~1.6GB RAM for ~400 refs; bands are ~0.6MB
+    each (~50MB total). The random subset re-picks whenever the folder
+    changes, so every cycle sees fresh variety."""
     single = f"./images/{biome}.png"
+    folder = f"./images/{biome}"
+    try:
+        sig = (os.path.getmtime(single) if os.path.exists(single) else 0,
+               tuple(sorted(os.listdir(folder))) if os.path.isdir(folder) else ())
+    except OSError:
+        sig = (0, ())
+    hit = _ref_cache.get(biome)
+    if hit is not None and hit[0] == sig:
+        return hit[1]
+    paths = []
     if os.path.exists(single):
         paths.append(single)
+    autos = []
+    if os.path.isdir(folder):
+        autos = [os.path.join(folder, p) for p in sorted(os.listdir(folder))
+                 if p.endswith(".png") and not p.endswith("_ground.png")]
+    if len(autos) > MAX_AUTO_REFS:
+        autos = random.sample(autos, MAX_AUTO_REFS)
+    paths += autos
+    refs = [sky_band(Image.open(p).convert("RGB")) for p in paths]
+    _ref_cache[biome] = (sig, refs)
+    return refs
+
+def full_ref(biome):
+    """A full-frame reference (for the mid-frame zoom check, loaded on demand
+    instead of cached - it runs at most a few times per cycle)."""
+    p = f"./images/{biome}.png"
+    if os.path.exists(p):
+        return Image.open(p).convert("RGB")
     folder = f"./images/{biome}"
     if os.path.isdir(folder):
-        paths += [p for p in sorted(_glob.glob(folder + "/*.png")) if not p.endswith("_ground.png")]
-    return [Image.open(p).convert("RGB") for p in paths]
+        for f in sorted(os.listdir(folder)):
+            if f.endswith(".png") and not f.endswith("_ground.png"):
+                return Image.open(os.path.join(folder, f)).convert("RGB")
+    return None
+
+_ground_cache = {}  # name -> mean color (ground refs never change mid-run)
+
+def ground_ref_mean(name):
+    hit = _ground_cache.get(name)
+    if hit is not None:
+        return hit
+    ref_path = f"./images/{name}_ground.png"
+    if not os.path.exists(ref_path):
+        return None
+    ref = Image.open(ref_path).convert("RGB")
+    m = ground_mean_color(ref)
+    _ground_cache[name] = m
+    return m
 
 def best_biome_match(currentscreen, names):
     """Return (best_biome_name, best_score). Picks the ref with the highest
@@ -241,11 +299,10 @@ def resolve_shared_sky(best, currentscreen):
     mean = ground_mean_color(currentscreen)
     candidates = []
     for n in group:
-        ref_path = f"./images/{n}_ground.png"
-        if not os.path.exists(ref_path):
+        rm = ground_ref_mean(n)
+        if rm is None:
             continue
-        ref = Image.open(ref_path).convert("RGB")
-        candidates.append((n, ground_mean_color(ref)))
+        candidates.append((n, rm))
     if len(candidates) == 1:
         return candidates[0][0]
     # hue dominance: purple has blue dominant, red has red dominant
@@ -294,26 +351,30 @@ def zoom_out():
     keyboard.release("o")
     time.sleep(1)
 
+def looks_indoor(shot):
+    """Lobby wall / camera-inside-geometry signature: grey and uniform from
+    the top band down through the mid frame. Dark biomes (void/star) have
+    high saturation or a bright island below the dark sky, so they don't
+    trigger this."""
+    top = band_lum(shot, 0, 150)
+    mid = band_lum(shot, 300, 650)
+    top_sat = shot.crop((200, 0, 1560, 150)).convert("HSV").split()[1]
+    sp = list(top_sat.getdata())
+    sat = sum(sp) / len(sp)
+    return sat < 35 and abs(top - mid) < 25 and 50 < (top + mid) / 2 < 150
+
 def view_state(shot):
     """Classify the current camera view:
     'indoor'  -> lobby wall fills the screen (needs a respawn)
     'close'   -> outdoors but the camera is zoomed in (needs zoom-out)
     'unknown' -> cannot tell (unmatched biome and/or odd angle)
     'ok'      -> matches a reference at the macro camera"""
-    top = band_lum(shot, 0, 150)
-    mid = band_lum(shot, 300, 650)
-    top_sat = shot.crop((200, 0, 1560, 150)).convert("HSV").split()[1]
-    sp = list(top_sat.getdata())
-    sat = sum(sp) / len(sp)
-    # indoor lobby: grey wall fills the frame (low saturation, top==mid,
-    # mid-range brightness). Dark biomes (void/star) have high saturation or
-    # a bright island below the dark sky, so they don't trigger this.
-    if sat < 35 and abs(top - mid) < 25 and 50 < (top + mid) / 2 < 150:
+    if looks_indoor(shot):
         return "indoor"
     best, score = best_biome_match(shot, rarebiomes + worthskipping + ["normal"])
     if best is not None and score >= 0.5:
-        ref = load_refs(best)[0]
-        if mid_band_match(ref, shot) < 0.35:
+        ref = full_ref(best)
+        if ref is not None and mid_band_match(ref, shot) < 0.35:
             return "close"
         return "ok"
     return "unknown"
@@ -356,16 +417,24 @@ def validate_view():
     print("* [view-check] unresolved after 3 tries - continuing anyway")
     return False
 
+_disc_ref = None  # cached disconnected-screen reference (loaded once)
+
 def check_disconnected(shot):
     """The 'Disconnected' modal (Error 273 - same account on another device):
-    a near-black frame with a grey centered dialog. Matched only on the modal
-    region so black loading transitions can't false-positive."""
+    a near-black frame with a grey centered dialog.
+    TWO gates, both required: a strong modal-region match AND a black
+    surround. Either one alone false-positives (grey stone platforms look
+    like the dialog; dark skies look black) - together they only fire on
+    the real error screen."""
+    global _disc_ref
     ref_path = "./images/disconnected.png"
     if not os.path.exists(ref_path):
         return False
-    ref = Image.open(ref_path).convert("RGB")
-    if ref.size != (REF_W, REF_H):
-        ref = ref.resize((REF_W, REF_H))
+    if _disc_ref is None:
+        _disc_ref = Image.open(ref_path).convert("RGB")
+        if _disc_ref.size != (REF_W, REF_H):
+            _disc_ref = _disc_ref.resize((REF_W, REF_H))
+    ref = _disc_ref
     tol = 20
     n = 150
     m = 0
@@ -376,7 +445,19 @@ def check_disconnected(shot):
         b = ref.getpixel((x, y))
         if abs(a[0] - b[0]) <= tol and abs(a[1] - b[1]) <= tol and abs(a[2] - b[2]) <= tol:
             m += 1
-    return m / n >= 0.5
+    if m / n < 0.65:
+        return False
+    dark = 0
+    tot = 0
+    for _ in range(40):
+        x = random.randrange(0, 1600)
+        y = random.randrange(0, 900)
+        if 550 <= x <= 1050 and 330 <= y <= 570:
+            continue
+        tot += 1
+        if max(shot.getpixel((x, y))) < 40:
+            dark += 1
+    return tot > 0 and dark / tot >= 0.8
 
 def wait_for_loaded(hwnd, timeout=180):
     """Reference-free: wait for the game to actually reload after joining.
@@ -542,6 +623,10 @@ def unbreakablehumanspirit():
             print(f"!!! cycle error: {e!r} - waiting 10s and retrying")
             import traceback
             traceback.print_exc()
+            try:
+                sendbywebhook({"content": f"!!! cycle error: {e!r} - retrying in 10s"})
+            except Exception:
+                pass
             time.sleep(10)
 
 def one_cycle():
@@ -629,13 +714,19 @@ def one_cycle():
     wait_end = towait
     currentscreen = None
     score = 0.0
-    for i in range(1, 181):
+    wait_start = time.time()
+    i = 0
+    while True:
+        # wall-clock tick: the counter tracks real seconds even when a scan
+        # iteration takes longer than 1s (hundreds of refs to compare)
+        i = int(time.time() - wait_start) + 1
+        tick_start = time.time()
         if finishall:
             break
-        time.sleep(1)
         currentscreen = snap_viewport()
         if check_disconnected(currentscreen):
             print("## 'Disconnected' screen during wait - killing Roblox and restarting")
+            sendbywebhook({"content": "## 'Disconnected' screen (error 273) during wait - killing Roblox and restarting."})
             kill_roblox()
             return
         keyboard.press_and_release(str(settings["whichslottoequip"]))  # equip item
@@ -650,9 +741,15 @@ def one_cycle():
 
         yepifoundit = False
         nahskip = False
-        best, score = best_biome_match(currentscreen, rarebiomes + worthskipping + ["normal"])
+        is_unknown = False
+        best, score = best_biome_match(currentscreen, rarebiomes + worthskipping + ["normal", "DIDNT_LOAD"])
         need = settings["biomepixelthreshold"] / settings["biomepixelchecks"]
-        if best is not None and score >= need:
+        if frame_is_black(currentscreen):
+            whichbiomefound = "None"  # transition frame - ignore entirely
+        elif best == "DIDNT_LOAD" and score >= need:
+            whichbiomefound = "None"  # loading screen, not a biome - wait it out
+            unknown_streak = 0
+        elif best is not None and score >= need:
             best = resolve_shared_sky(best, currentscreen)
             whichbiomefound = best
             if best in rarebiomes:
@@ -662,12 +759,26 @@ def one_cycle():
             else:
                 whichbiomefound = "None"  # plain grasslands = keep waiting
             unknown_streak = 0
+        elif looks_indoor(currentscreen):
+            whichbiomefound = "None"  # knocked into a wall / bad camera - fix it
+            print(f"* camera inside geometry at t={i}s - respawning to fix it")
+            keyboard.press_and_release("esc")
+            time.sleep(0.5)
+            keyboard.press_and_release("r")
+            time.sleep(0.5)
+            keyboard.press_and_release("enter")
+            time.sleep(5)
+            zoom_out()
+            unknown_streak = 0
         else:
-            whichbiomefound = "None"
+            whichbiomefound = "None"  # genuine unknown biome
+            is_unknown = True
             unknown_streak += 1
             # unknown biome: ping Discord so the user can screenshot it
-            # (skip the ping while the capture is black - nothing to see)
-            if (unknown_streak == 15 or (unknown_streak > 15 and unknown_streak % 30 == 0)) \
+            # (skip the ping while the capture is black - nothing to see;
+            # disable entirely with "pingunknown": false)
+            if settings.get("pingunknown", True) \
+                    and (unknown_streak == 15 or (unknown_streak > 15 and unknown_streak % 30 == 0)) \
                     and not frame_is_black(currentscreen):
                 print(f"* UNKNOWN BIOME for {unknown_streak}s - pinging to screenshot it")
                 currentscreen.save("tempscreen.png")
@@ -680,7 +791,7 @@ def one_cycle():
             refdir = f"./images/{whichbiomefound}"
             os.makedirs(refdir, exist_ok=True)
             currentscreen.save(f"{refdir}/{time.strftime('%Y%m%d_%H%M%S')}.png")
-        elif i % 30 == 0 and not frame_is_black(currentscreen):
+        elif is_unknown and i % 30 == 0:
             os.makedirs("unknowns", exist_ok=True)
             currentscreen.save(f"unknowns/{time.strftime('%Y%m%d_%H%M%S')}.png")
 
@@ -697,12 +808,15 @@ def one_cycle():
         elif nahskip:
             break
         if i >= wait_end:
-            if unknown_streak >= 15:
+            if unknown_streak >= 15 and settings.get("pingunknown", True):
                 # persistent unknown biome: keep waiting so the user can screenshot it
                 wait_end = 180
                 print("* unknown biome present - extending the wait so you can screenshot it")
             else:
                 break
+        if i >= 180:
+            break
+        time.sleep(max(0, 1.0 - (time.time() - tick_start)))  # keep ~1 tick per real second
 
     if biomefound:
         print("# " + whichbiomefound.upper() + " FOUND on try " + str(timestried))
@@ -717,14 +831,16 @@ def one_cycle():
             time.sleep(1)
             rarebiomeended = False
             afktimeelapsed = 0
+            farm_start = time.time()
             while not rarebiomeended:
+                afktimeelapsed = int(time.time() - farm_start)
+                tick_start = time.time()
                 if finishall:
                     break
-                time.sleep(1)
-                afktimeelapsed += 1
                 currentscreen = snap_viewport()  # re-checks the window rect too
                 if check_disconnected(currentscreen):
                     print("## 'Disconnected' screen during farm - killing Roblox and restarting")
+                    sendbywebhook({"content": "## 'Disconnected' screen (error 273) during farm - killing Roblox and restarting."})
                     kill_roblox()
                     return
                 keyboard.press_and_release(str(settings["slottoafkfarm"]))  # equip item
@@ -759,6 +875,7 @@ def one_cycle():
                         currentscreen.save("tempscreen.png")
                         data["file"] = "tempscreen.png"
                     sendbywebhook(data)
+                time.sleep(max(0, 1.0 - (time.time() - tick_start)))
     else:
         timestried += 1
         msg = f"* skipped {whichbiomefound} (score {score:.2f}). [{settings['strugglemessage']}] #{timestried}"

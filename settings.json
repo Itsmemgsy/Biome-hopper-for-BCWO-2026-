@@ -1,6 +1,7 @@
 {
  "webhook": "None",
  "userid": "0",
+ "pingunknown": true,
  "vip": "PASTE_YOUR_PRIVATE_SERVER_LINK_HERE",
  "pingeveryoneuponrare": false,
  "rejoindelay": 0,
@@ -12,14 +13,14 @@
  "biomepixeltolerance": 12,
  "rarebiomes": {
   "hvuh": 0,
-  "void": 0,
   "angel": 0,
   "bene": 0,
-  "cult": 0,
   "asta": 0
  },
  "skippablebiomes": {
   "pvc": 0,
+  "void": 0,
+  "cult": 0,
   "moon": 0,
   "flame": 0,
   "forest": 0,
@@ -37,7 +38,7 @@
  },
  "afkfarm": true,
  "slottoafkfarm": 2,
- "waitbeforerejoin": 60,
+ "waitbeforerejoin": 90,
  "browsertoclose": "chrome",
  "killbrowser": true,
  "whichslottoequip": 1,

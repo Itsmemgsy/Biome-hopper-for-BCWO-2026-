@@ -1,8 +1,11 @@
 # 🌾 Biome Hopper — automatic biome farming for Balanced Craftwars Overhaul
 
-Opens your private server, waits for a biome, farms the rare ones (pets out,
+Opens your private server, waits for a biome, farms the rare ones (summons out,
 AFK fighting) and re-joins to skip the rest. Pings you on Discord when it
 finds something worth your attention.
+
+MUST READ!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+PUT YOUR TWILIGHT AND OTHER SUMMON ON FIRST AND SECOND PLACE OF YOUR INVENTORY
 
 Adapted from https://github.com/debelopguy/BiomeHopper and reworked: the
 repo's screenshots, boss checks and clicks were built for an older BCWO and a
@@ -13,6 +16,7 @@ own references, and validates the camera every cycle.
 
 - **Windows 10/11** (64-bit)
 - **Python 3.10+** from python.org — during install tick **"Add python.exe to PATH"**
+- https://www.python.org/
 - **Roblox** installed, running **windowed** (not exclusive fullscreen — the
   macro forces windowed with F11 if needed)
 - **Your private (VIP) server link** for Balanced Craftwars Overhaul
@@ -120,8 +124,10 @@ Reference lookup table (chat message → button):
 > Note: Benedictus phase 2 (Blinding Light boss) hides the sky behind a
 > reflective ceiling — references must be captured from the *normal* view.
 >
-> Note: asta (Shrouding Darkness) ships with no reference yet — the macro will
-> report it as UNKNOWN and ping you; capture it the first time it appears.
+> Note: Astaroth phase 2 (Shrouding Darkness boss) shrouds the whole map in
+> dark fog — the screen goes nearly black. This is normal: the macro keeps
+> farming through it (black frames are retried, never saved as references,
+> and never trigger pings).
 
 ## The Discord messages
 
@@ -154,6 +160,7 @@ Reference lookup table (chat message → button):
 | `cleanupage_hours` / `cleanupmaxmb` | 24 / 200 | Auto-delete `captures/` + `unknowns/` older than this or over this size |
 | `biomepixelchecks` / `biomepixelthreshold` / `biomepixeltolerance` | 300 / 150 / 12 | How many sky pixels sampled, how many must match (50%), per-channel tolerance |
 | `killbrowser` | true | Kill Chrome after the game loads (saves RAM) |
+| `pingunknown` | true | Ping Discord + wait up to 3 min on unrecognized biomes (safety net for game updates); off = skip them like grasslands |
 | `browsertoclose` | chrome | `chrome` / `msedge` / `firefox` — must match the browser you use |
 | `resetuponload` | true | Respawn after joining (spawn is an indoor lobby) |
 | `screenshotstatusinterval` | 10 | Seconds between Discord status pictures |
