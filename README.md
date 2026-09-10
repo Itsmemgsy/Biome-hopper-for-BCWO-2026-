@@ -78,7 +78,7 @@ Press **F9** anytime to stop. The macro never injects or hacks — it only
 presses keys and clicks like a normal macro, and it never changes your Roblox
 settings or sensitivity.
 
-## Step 5 — teach it biomes (the reference pictures)
+## Step 5 — teach it biomes (the reference pictures) (not rlly needed btw This Macro currently missing Asta only)
 
 Biome detection = comparing ~300 random pixels from the **top sky band** of your
 screen against saved reference pictures, best-match wins. Most references are
